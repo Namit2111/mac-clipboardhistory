@@ -74,13 +74,37 @@ final class ClipboardHistory: ObservableObject {
     }
 
     private func prepend(_ item: ClipItem) {
-        items.insert(item, at: 0)
+        // Find the insertion point - after any pinned items
+        let insertionIndex = items.firstIndex { !$0.isPinned } ?? items.count
+        items.insert(item, at: insertionIndex)
         if items.count > maxItems { items.removeLast(items.count - maxItems) }
         persist()
     }
 
     func clear() {
         items.removeAll()
+        persist()
+    }
+    
+    func togglePin(for itemID: UUID) {
+        guard let index = items.firstIndex(where: { $0.id == itemID }) else { return }
+        
+        items[index].isPinned.toggle()
+        
+        // If item was pinned, move it to the top (among pinned items)
+        // If item was unpinned, move it to the first unpinned position
+        let item = items.remove(at: index)
+        
+        if item.isPinned {
+            // Find the last pinned item and insert after it
+            let pinnedCount = items.filter { $0.isPinned }.count
+            items.insert(item, at: pinnedCount)
+        } else {
+            // Find the first unpinned item and insert there
+            let insertionIndex = items.firstIndex { !$0.isPinned } ?? items.count
+            items.insert(item, at: insertionIndex)
+        }
+        
         persist()
     }
 

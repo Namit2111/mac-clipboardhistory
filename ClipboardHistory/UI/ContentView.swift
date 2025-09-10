@@ -12,11 +12,17 @@ struct ContentView: View {
     var filtered: [ClipItem] {
         guard !query.isEmpty else { return history.items }
         let q = query.lowercased()
-        return history.items.filter { item in
+        let filteredItems = history.items.filter { item in
             switch item.kind {
             case .text: return item.text?.lowercased().contains(q) == true
             case .image: return "image".contains(q)
             }
+        }
+        // Ensure pinned items stay at the top even when filtered
+        return filteredItems.sorted { lhs, rhs in
+            if lhs.isPinned && !rhs.isPinned { return true }
+            if !lhs.isPinned && rhs.isPinned { return false }
+            return false // Keep original order for same pin status
         }
     }
     
@@ -72,6 +78,7 @@ struct ContentView: View {
                                 isSelected: selectedItemID == item.id,
                                 isCopied: copiedItemID == item.id,
                                 onSelect: { select(item) },
+                                onPinToggle: { history.togglePin(for: item.id) },
                                 onHover: { hovering in
                                     if hovering {
                                         selectedItemID = item.id
@@ -167,6 +174,7 @@ struct ClipItemRow: View {
     let isSelected: Bool
     let isCopied: Bool
     let onSelect: () -> Void
+    let onPinToggle: () -> Void
     let onHover: (Bool) -> Void
     
     var body: some View {
@@ -211,10 +219,14 @@ struct ClipItemRow: View {
                 
                 Spacer()
                 
-                if isSelected {
-                    Image(systemName: "chevron.right")
+                Button(action: onPinToggle) {
+                    Image(systemName: item.isPinned ? "pin.fill" : "pin")
                         .font(.system(size: 12))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(item.isPinned ? .accentColor : .secondary)
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    // Prevent hover state from affecting parent row
                 }
             }
             .padding(.horizontal, 10)

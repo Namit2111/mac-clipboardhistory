@@ -11,6 +11,7 @@ struct ClipItem: Identifiable, Equatable, Hashable, Codable {
     var image: NSImage? = nil
     var imageHash: Int = 0
     var timestamp: Date = .init()
+    var isPinned: Bool = false
 
     var displayTitle: String {
         switch kind {
@@ -23,7 +24,7 @@ struct ClipItem: Identifiable, Equatable, Hashable, Codable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, kind, text, image, imageHash, timestamp
+        case id, kind, text, image, imageHash, timestamp, isPinned
     }
 
     init(kind: Kind, text: String? = nil, image: NSImage? = nil, imageHash: Int = 0) {
@@ -46,6 +47,7 @@ struct ClipItem: Identifiable, Equatable, Hashable, Codable {
             imageHash = 0
         }
         timestamp = try container.decodeIfPresent(Date.self, forKey: .timestamp) ?? Date()
+        isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -61,5 +63,6 @@ struct ClipItem: Identifiable, Equatable, Hashable, Codable {
             try container.encode(0, forKey: .imageHash)
         }
         try container.encode(timestamp, forKey: .timestamp)
+        try container.encode(isPinned, forKey: .isPinned)
     }
 }
