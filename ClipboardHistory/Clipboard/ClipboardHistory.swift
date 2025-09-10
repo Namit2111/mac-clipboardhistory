@@ -6,11 +6,15 @@ import Combine
 
 final class ClipboardHistory: ObservableObject {
     @Published var items: [ClipItem] = []
-    @Published var maxItems: Int = UserDefaults.standard.integer(forKey: "maxItems") == 0 ? 50 : UserDefaults.standard.integer(forKey: "maxItems")
+    @Published var maxItems: Int = {
+        let saved = UserDefaults.standard.integer(forKey: "maxItems")
+        return saved > 0 ? saved : 50
+    }()
     @Published var autoPaste: Bool = UserDefaults.standard.bool(forKey: "autoPaste")
 
-    private var timer: Timer?
+    private weak var timer: Timer?
     private var lastChangeCount: Int = NSPasteboard.general.changeCount
+    private var lastImageHash: Int = 0
 
     func start() {
         timer?.invalidate()
@@ -19,7 +23,10 @@ final class ClipboardHistory: ObservableObject {
         }
     }
 
-    func stop() { timer?.invalidate(); timer = nil }
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+    }
 
     private func poll() {
         let pb = NSPasteboard.general
@@ -38,15 +45,19 @@ final class ClipboardHistory: ObservableObject {
 
     private func appendText(_ str: String) {
         let trimmed = str.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
         if let first = items.first, first.kind == .text, first.text == trimmed { return }
         let item = ClipItem(kind: .text, text: trimmed)
         prepend(item)
     }
 
     private func appendImage(_ img: NSImage) {
-        if let first = items.first, first.kind == .image, let fi = first.image,
-           fi.tiffRepresentation == img.tiffRepresentation { return }
-        let item = ClipItem(kind: .image, image: img)
+        let hash = img.tiffRepresentation?.hashValue ?? 0
+        if hash == lastImageHash { return }
+        lastImageHash = hash
+        
+        if let first = items.first, first.kind == .image, first.imageHash == hash { return }
+        let item = ClipItem(kind: .image, image: img, imageHash: hash)
         prepend(item)
     }
 
@@ -64,21 +75,38 @@ final class ClipboardHistory: ObservableObject {
     func setMax(_ n: Int) {
         maxItems = max(5, min(500, n))
         UserDefaults.standard.set(maxItems, forKey: "maxItems")
-        if items.count > maxItems { items.removeLast(items.count - maxItems) }
+        UserDefaults.standard.synchronize()
+        if items.count > maxItems {
+            items.removeLast(items.count - maxItems)
+            persist()
+        }
     }
 
     func setAutoPaste(_ on: Bool) {
         autoPaste = on
         UserDefaults.standard.set(on, forKey: "autoPaste")
+        UserDefaults.standard.synchronize()
     }
 
     private func persist() {
-        let texts = items.prefix(100).compactMap { $0.text }
-        UserDefaults.standard.set(texts, forKey: "history.texts")
+        do {
+            let encoder = JSONEncoder()
+            let data = try encoder.encode(items)
+            UserDefaults.standard.set(data, forKey: "history")
+            UserDefaults.standard.synchronize()
+        } catch {
+            print("Failed to persist clipboard history: \(error)")
+        }
     }
 
     func loadPersisted() {
-        let texts = (UserDefaults.standard.array(forKey: "history.texts") as? [String]) ?? []
-        items = texts.map { ClipItem(kind: .text, text: $0) }
+        guard let data = UserDefaults.standard.data(forKey: "history") else { return }
+        do {
+            let decoder = JSONDecoder()
+            items = try decoder.decode([ClipItem].self, from: data)
+        } catch {
+            print("Failed to load persisted clipboard history: \(error)")
+            items = []
+        }
     }
 }

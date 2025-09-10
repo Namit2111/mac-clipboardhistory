@@ -12,7 +12,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         history.start()
 
         // Wire the popover content
-        let root = ContentView().environmentObject(history)
+        let root = ContentView()
+            .environmentObject(history)
+            .environmentObject(hotKey)
         StatusItemController.shared.setRootView(root)
 
         // Register ⌘⇧V
