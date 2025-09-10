@@ -11,6 +11,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     private var eventMonitor: Any?
     private var localMonitor: Any?
     private var anchorWindow: NSWindow?
+    private weak var previousFirstResponder: NSResponder?
 
     override init() {
         super.init()
@@ -38,6 +39,11 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     }
 
     func showPopover(_ sender: Any?) {
+        // Store the currently focused element before showing popover
+        if let keyWindow = NSApp.keyWindow {
+            previousFirstResponder = keyWindow.firstResponder
+        }
+        
         if sender != nil {
             // Clicked from status bar - show from button
             guard let button = statusItem.button else { return }
@@ -103,6 +109,53 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         popover.performClose(sender)
         stopEventMonitor()
         cleanupAnchorWindow()
+        restorePreviousFocus()
+    }
+    
+    private func restorePreviousFocus() {
+        // Restore focus to the previously focused element after a delay
+        // to allow for auto-paste to work properly
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            self?.attemptFocusRestore()
+        }
+    }
+    
+    private func attemptFocusRestore() {
+        guard let previousResponder = self.previousFirstResponder else {
+            self.previousFirstResponder = nil
+            return
+        }
+        
+        // Try multiple approaches to restore focus
+        var success = false
+        
+        // Approach 1: Direct restoration
+        if let window = previousResponder.nextResponder as? NSWindow {
+            success = window.makeFirstResponder(previousResponder)
+        }
+        
+        // Approach 2: Try key window
+        if !success, let keyWindow = NSApp.keyWindow {
+            success = keyWindow.makeFirstResponder(previousResponder)
+        }
+        
+        // Approach 3: Try main window
+        if !success, let mainWindow = NSApp.mainWindow {
+            success = mainWindow.makeFirstResponder(previousResponder)
+        }
+        
+        // If still unsuccessful, try again with a longer delay
+        if !success {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                if let previousResponder = self?.previousFirstResponder,
+                   let window = NSApp.keyWindow {
+                    window.makeFirstResponder(previousResponder)
+                }
+                self?.previousFirstResponder = nil
+            }
+        } else {
+            self.previousFirstResponder = nil
+        }
     }
     
     private func cleanupAnchorWindow() {
@@ -149,5 +202,6 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     func popoverDidClose(_ notification: Notification) {
         stopEventMonitor()
         cleanupAnchorWindow()
+        restorePreviousFocus()
     }
 }

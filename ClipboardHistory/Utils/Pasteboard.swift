@@ -41,6 +41,12 @@ func copyToPasteboard(_ item: ClipItem) {
 }
 
 func performAutoPaste() {
+    // First try direct paste via responder chain
+    if tryDirectPaste() {
+        return
+    }
+    
+    // Fallback to simulated keystrokes with longer delays
     guard let src = CGEventSource(stateID: .combinedSessionState) else {
         print("Failed to create event source for auto-paste")
         return
@@ -60,10 +66,27 @@ func performAutoPaste() {
     let loc = CGEventTapLocation.cghidEventTap
     
     cmdDown.post(tap: loc)
-    Thread.sleep(forTimeInterval: 0.01)
+    Thread.sleep(forTimeInterval: 0.02)
     vDown.post(tap: loc)
-    Thread.sleep(forTimeInterval: 0.01)
+    Thread.sleep(forTimeInterval: 0.02)
     vUp.post(tap: loc)
-    Thread.sleep(forTimeInterval: 0.01)
+    Thread.sleep(forTimeInterval: 0.02)
     cmdUp.post(tap: loc)
+}
+
+private func tryDirectPaste() -> Bool {
+    // Try to find the currently active text field and paste directly
+    guard let keyWindow = NSApp.keyWindow,
+          let firstResponder = keyWindow.firstResponder else {
+        return false
+    }
+    
+    // Check if the first responder can handle paste
+    let pasteSelector = Selector(("paste:"))
+    if firstResponder.responds(to: pasteSelector) {
+        firstResponder.perform(pasteSelector, with: nil)
+        return true
+    }
+    
+    return false
 }

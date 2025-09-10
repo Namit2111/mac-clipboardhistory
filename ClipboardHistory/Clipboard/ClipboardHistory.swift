@@ -47,6 +47,12 @@ final class ClipboardHistory: ObservableObject {
         let trimmed = str.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         if let first = items.first, first.kind == .text, first.text == trimmed { return }
+        
+        // Remove any existing duplicate text items
+        items.removeAll { item in
+            item.kind == .text && item.text == trimmed
+        }
+        
         let item = ClipItem(kind: .text, text: trimmed)
         prepend(item)
     }
@@ -57,6 +63,12 @@ final class ClipboardHistory: ObservableObject {
         lastImageHash = hash
         
         if let first = items.first, first.kind == .image, first.imageHash == hash { return }
+        
+        // Remove any existing duplicate image items
+        items.removeAll { item in
+            item.kind == .image && item.imageHash == hash
+        }
+        
         let item = ClipItem(kind: .image, image: img, imageHash: hash)
         prepend(item)
     }

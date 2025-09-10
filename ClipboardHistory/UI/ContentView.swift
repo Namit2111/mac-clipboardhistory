@@ -149,7 +149,8 @@ struct ContentView: View {
             StatusItemController.shared.closePopover(nil)
             
             if history.autoPaste {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                // Wait longer to ensure focus is restored before pasting
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                     performAutoPaste()
                 }
             }
